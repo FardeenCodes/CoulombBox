@@ -19,6 +19,7 @@ https://creativecommons.org/publicdomain/zero/1.0/
 #define k 36000
 #define RAD 20
 #define NOTRAILPTS 100
+#define WIDTHGRAPH 900
 
 typedef struct {
   Vector2 pos[NOTRAILPTS];
@@ -48,7 +49,7 @@ typedef struct {
   float pe, ke, te;
 } energies;
 typedef struct {
-  energies val[900];
+  energies val[WIDTHGRAPH];
   int head, tail, size;
 } graph;
 
@@ -56,15 +57,20 @@ void addEnergies(graph *a, float pe, float ke, float te) {
   a->val[a->tail].pe = pe;
   a->val[a->tail].ke = ke;
   a->val[a->tail].te = te;
-  a->tail = (a->tail + 1) % 900;
-  if (a->size < 900) {
+  a->tail = (a->tail + 1) % WIDTHGRAPH;
+  if (a->size < WIDTHGRAPH) {
     a->size++;
   } else
-    a->head = (a->head + 1) % 900;
+    a->head = (a->head + 1) % WIDTHGRAPH;
 }
 float grphBalance = 1;
 void drawGraph(graph *a) {
-  DrawLineEx((Vector2){WIDTH, 0}, (Vector2){WIDTH, HEIGHT}, 5, WHITE);
+  DrawLineEx((Vector2){WIDTH, 50.0f}, (Vector2){WIDTH, HEIGHT - 50.0f}, 4,
+             GRAY);
+  DrawLineEx((Vector2){WIDTH, 50.0f}, (Vector2){WIDTH + 10, 50.0f + 10}, 4,
+             GRAY);
+  DrawLineEx((Vector2){WIDTH, HEIGHT - 50.0f},
+             (Vector2){WIDTH + 10, HEIGHT - (50.0f + 10)}, 4, GRAY);
   DrawText("TE:\nKE:\nPE:", WIDTH + 5, HEIGHT - 25 * 3, 25, WHITE);
   DrawLineEx((Vector2){WIDTH + MeasureText("TE:\nKE:\nPE:", 25) + 10,
                        HEIGHT - 75 + 25 / 2.0},
@@ -83,18 +89,21 @@ void drawGraph(graph *a) {
              5, GREEN);
 
   // graph axis
-  DrawLineEx((Vector2){WIDTH, HEIGHT / 2}, (Vector2){WIDTH + 900, HEIGHT / 2},
-             1, WHITE);
+  DrawLineEx((Vector2){WIDTH, HEIGHT / 2},
+             (Vector2){WIDTH + WIDTHGRAPH, HEIGHT / 2}, 2, GRAY);
   for (int i = 0; i < a->size; i++) {
-    DrawPixel(i + WIDTH,
-              (WIDTH / 2 - grphBalance * (a->val[(a->head + i) % 900].pe)),
-              GREEN);
-    DrawPixel(i + WIDTH,
-              (WIDTH / 2 - grphBalance * (a->val[(a->head + i) % 900].ke)),
-              RED);
-    DrawPixel(i + WIDTH,
-              (WIDTH / 2 - grphBalance * (a->val[(a->head + i) % 900].te)),
-              BLUE);
+    DrawPixel(
+        i + WIDTH,
+        (HEIGHT / 2 - grphBalance * (a->val[(a->head + i) % WIDTHGRAPH].pe)),
+        GREEN);
+    DrawPixel(
+        i + WIDTH,
+        (HEIGHT / 2 - grphBalance * (a->val[(a->head + i) % WIDTHGRAPH].ke)),
+        RED);
+    DrawPixel(
+        i + WIDTH,
+        (HEIGHT / 2 - grphBalance * (a->val[(a->head + i) % WIDTHGRAPH].te)),
+        BLUE);
   }
 }
 
@@ -108,6 +117,8 @@ chargeP *arr = NULL;
 int noP = 0;
 
 void drawCharge() {
+  // draw box
+  DrawLineEx((Vector2){WIDTH, 0}, (Vector2){WIDTH, HEIGHT}, 5, WHITE);
   DrawLineEx((Vector2){0, HEIGHT}, (Vector2){WIDTH, HEIGHT}, 4, WHITE);
   for (int i = 0; i < noP; i++) {
     DrawCircleV(arr[i].pos, RAD, arr[i].charge > 0 ? BLUE : RED);
@@ -163,7 +174,7 @@ void drawEFArrow() {
 }
 
 int main() {
-  printf("hi");
+  // printf("hi");
   graph g;
   g.head = 0;
   g.tail = 0;
@@ -173,7 +184,7 @@ int main() {
   // SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
 
   // Create the window and OpenGL context
-  InitWindow(WIDTH + 900, HEIGHT, "Charge Particles Simulation");
+  InitWindow(WIDTH + WIDTHGRAPH, HEIGHT, "Charge Particles Simulation");
   chargeP *tmp = NULL;
   chargeP tmpCharge;
   Vector2 ef = {0, 0}, dir, acc, startPos, vrel, vadd;
@@ -252,7 +263,6 @@ int main() {
 
       if (!(invalidP)) {
         noP++;
-        printf("%d", sizeof(chargeP));
         chargeP *tmp = (chargeP *)realloc(arr, (noP) * sizeof(chargeP));
         if (tmp == NULL) {
           return 1;
@@ -419,10 +429,13 @@ int main() {
     addEnergies(&g, U, ke, U + ke);
     float max = fabsf(U) > fabsf(ke) ? U : ke;
     max = fabsf(max) > fabsf(U + ke) ? max : (U + ke);
-    while (fabsf(HEIGHT / 2 - grphBalance * max) > HEIGHT / 2 + 100) {
-      grphBalance *= 0.1;
-    }
-    // printf("v.x:%f v.y:%f \n", arr[noP - 2].v.x, arr[noP - 2].v.y);
+
+    // looks better but shifts graph every frame
+    grphBalance = (HEIGHT / 2 - 50.0f) / (max != 0 ? fabsf(max) : 1.0f);
+
+    // while (fabsf(HEIGHT / 2 - grphBalance * max) > HEIGHT / 2 + 100) {
+    //   grphBalance *= 0.1;
+    // }
     U = 0;
     ke = 0;
     drawCharge();
