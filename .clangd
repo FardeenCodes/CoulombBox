@@ -1,0 +1,4 @@
+CompileFlags:
+  Add:
+    - "-I/home/fardeen/rayLib/rays/build/external/raylib-master/src/"
+    - "-I./src"
