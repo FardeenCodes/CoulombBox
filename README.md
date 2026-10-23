@@ -6,6 +6,7 @@ A small **2D electrostatic particle simulator** written in C using [raylib](http
 
 ## Demo
 ![Demo gif](assets/ChargeSimul.gif)
+![Demo pic](assets/pic1.png)
 
 ## Features
 
