@@ -1,14 +1,16 @@
 /*
-Raylib example file.
-This is an example main file for a simple raylib project.
-Use this as a starting point or replace it with your code.
-
-by Jeffery Myers is marked with CC0 1.0. To view a copy of this license, visit
-https://creativecommons.org/publicdomain/zero/1.0/
+ // NOTE::encountered an issue with .didcollide  where this loops new
+colliding particles interfered with last loops colliding particles pair
 
 */
 // #include <std>
-// //TODO CHECK WALL  COLLIDE WHEN SPAWNING PARTICLE TOO
+// //TODO :: ADD EVENT BASED COLLISION DETECTION FOR wall too (by adding one
+// more bool var wall collision)
+// NOTE: still fails and overlap happens when adding more particle which throws
+// off the predicted first collision and time taken for it (dtoffset)
+// for ex: when adding a lot of particles too close especially when particles ar
+// already colliding
+// or a particles just in path of a very fast moving particle
 #include "raylib.h"
 #include "raymath.h"
 #include <math.h>
@@ -20,6 +22,7 @@ https://creativecommons.org/publicdomain/zero/1.0/
 #define RAD 20
 #define NOTRAILPTS 100
 #define WIDTHGRAPH 900
+#define DT 1 / 60.0f
 
 typedef struct {
   Vector2 pos[NOTRAILPTS];
@@ -111,6 +114,7 @@ typedef struct {
   Vector2 pos, v, acc;
   double charge;
   int mass;
+  bool didCollide, wallCollide; // test
   trailPts pts;
 } chargeP;
 chargeP *arr = NULL;
@@ -188,20 +192,25 @@ int main() {
   chargeP *tmp = NULL;
   chargeP tmpCharge;
   Vector2 ef = {0, 0}, dir, acc, startPos, vrel, vadd;
-  float r2, u1, u2, U = 0, ke = 0, ovrLap;
-  bool invalidP = false;
+  float var, r2, u1, u2, U = 0, ke = 0, ovrLap, TE = 0;
+  bool invalidP = false, wcollWillhappen = false, pcollWillhappen = false;
+  int collidingP1 = -1, collidingP2 = -1;
+  int CollidedP[2] = {-1, -1};
 
   SetTargetFPS(60);
-  float dt, dU;                // game loop
-  while (!WindowShouldClose()) // run the loop until the user presses ESCAPE
-                               // or presses the Close button on the window
+  float dt, dU, dtoffset = 0.0f; // game loop
+  while (!WindowShouldClose())   // run the loop until the user presses ESCAPE
+                                 // or presses the Close button on the window
 
   {
-    // dt = 1 / 240.0f;
-    dt = 1 / 60.0f;
+    dt = 1 / 60.0f - dtoffset;
+    dtoffset = 0;
+    // dt = 1 / 60.0f;
     // dt = GetFrameTime();
     // drawing
     BeginDrawing();
+    // startPos = (Vector2){0, 0};
+    invalidP = false;
     if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
       startPos = GetMousePosition();
     else if (IsMouseButtonPressed(MOUSE_RIGHT_BUTTON))
@@ -209,6 +218,8 @@ int main() {
 
     ClearBackground(BLACK);
     if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
+      tmpCharge.didCollide = false;
+      tmpCharge.wallCollide = false;
       tmpCharge.pos = startPos;
       tmpCharge.charge = +1;
       tmpCharge.mass = +1;
@@ -221,24 +232,44 @@ int main() {
 
         if (CheckCollisionCircles(tmpCharge.pos, RAD, arr[i].pos, RAD)) {
           invalidP = true;
+          printf("invalidP");
         }
       }
       if (tmpCharge.pos.x - RAD < 0 || tmpCharge.pos.x + RAD > WIDTH ||
           tmpCharge.pos.y - RAD < 0 || tmpCharge.pos.y + RAD > HEIGHT) {
         invalidP = true;
+        printf("invalidP");
       }
       if (!(invalidP)) {
-        noP++;
-        chargeP *tmp = (chargeP *)realloc(arr, (noP) * sizeof(chargeP));
+        chargeP *tmp = (chargeP *)realloc(arr, (noP + 1) * sizeof(chargeP));
         if (tmp == NULL) {
-          return 1;
+          continue;
         }
+        noP++;
         arr = tmp;
         arr[noP - 1] = tmpCharge;
+        TE = U + ke;
+        // printf("U+ke:%f",TE);
+        U = 0, ke = 0;
+        for (int i = 0; i < noP - 1; i++) {
+          dir = Vector2Subtract(arr[i].pos, tmpCharge.pos);
+          r2 = Vector2Length(dir); // r2 isnt r^2 here
+          dir = Vector2Normalize(dir);
+          ef = Vector2Scale(dir, k / r2);
+          U += arr[i].charge * tmpCharge.charge * Vector2Length(ef);
+        }
+        TE += 1 / 2.0 * tmpCharge.mass * Vector2LengthSqr(tmpCharge.v) + U;
+        printf("E(0):%f", TE);
+        U = 0;
 
+        // dtoffset = 1/60.0f -dt;
+
+        goto Collision;
         // free(tmp);NEVER FREE TMP ITS POINTING TO ARR
       }
     } else if (IsMouseButtonReleased(MOUSE_RIGHT_BUTTON)) {
+      tmpCharge.didCollide = false;
+      tmpCharge.wallCollide = false;
       tmpCharge.pos = startPos;
       tmpCharge.charge = -1;
       tmpCharge.mass = +1;
@@ -253,27 +284,41 @@ int main() {
 
         if (CheckCollisionCircles(tmpCharge.pos, RAD, arr[i].pos, RAD)) {
           invalidP = true;
+          printf("invalidP");
         }
       }
 
       if (tmpCharge.pos.x - RAD < 0 || tmpCharge.pos.x + RAD > WIDTH ||
           tmpCharge.pos.y - RAD < 0 || tmpCharge.pos.y + RAD > HEIGHT) {
         invalidP = true;
+        printf("invalidP");
       }
 
       if (!(invalidP)) {
-        noP++;
-        chargeP *tmp = (chargeP *)realloc(arr, (noP) * sizeof(chargeP));
+        chargeP *tmp = (chargeP *)realloc(arr, (noP + 1) * sizeof(chargeP));
         if (tmp == NULL) {
-          return 1;
+          continue;
         }
+        noP++;
         arr = tmp;
         arr[noP - 1] = tmpCharge;
+        TE += U + ke;
+        U = 0, ke = 0;
+        for (int i = 0; i < noP - 1; i++) {
+          dir = Vector2Subtract(arr[i].pos, tmpCharge.pos);
+          r2 = Vector2Length(dir); // r2 isnt r^2 here
+          dir = Vector2Normalize(dir);
+          ef = Vector2Scale(dir, k / r2);
+          U += arr[i].charge * tmpCharge.charge * Vector2Length(ef);
+        }
+        TE += 1 / 2.0 * tmpCharge.mass * Vector2LengthSqr(tmpCharge.v) + U;
+        U = 0;
+
+        goto Collision;
 
         // free(tmp);NEVER FREE TMP ITS POINTING TO ARR
       }
     }
-    invalidP = false;
 
     for (int i = 0; i < noP; i++) {
       // halfstep velocity
@@ -290,7 +335,8 @@ int main() {
         if (i == j) // no E on itself
           continue;
         dir = Vector2Subtract(arr[i].pos, arr[j].pos);
-        r2 = Vector2LengthSqr(dir);
+        // test adding padding to make a max effect of force
+        r2 = Vector2LengthSqr(dir) + 0.000001f;
         dir = Vector2Normalize(dir);
         ef = Vector2Add(
             ef, Vector2Scale(dir, k * arr[i].charge * arr[j].charge / r2));
@@ -301,106 +347,262 @@ int main() {
       arr[i].acc = acc;
       arr[i].v = Vector2Add(arr[i].v, Vector2Scale(arr[i].acc, dt / 2.0));
     }
+  Collision:
     for (int i = 0; i < noP; i++) {
 
       // wall collide[CORRECT]
-      if (arr[i].pos.x - RAD <= 0)
+      // handling
+      if (arr[i].pos.x - RAD <= 0 && arr[i].wallCollide) {
+        printf("WALL COLLISION HANDLED\n");
         // if (arr[i].pos.x + arr[i].v.x - RAD <= 0){
         arr[i].v.x *= -1;
-      else if (arr[i].pos.x + RAD >= WIDTH) {
+
+        arr[i].wallCollide = false;
+      } else if (arr[i].pos.x + RAD >= WIDTH && arr[i].wallCollide) {
+        printf("WALL COLLISION HANDLED\n");
         arr[i].v.x *= -1;
-        // arr[i].pos.x = WIDTH - RAD; why did i even write this
+        arr[i].wallCollide = false;
       }
-      if (arr[i].pos.y + RAD >= HEIGHT)
+      // arr[i].pos.x = WIDTH - RAD; why did i even write this
+
+      if (arr[i].pos.y + RAD >= HEIGHT && arr[i].wallCollide) {
+        printf("WALL COLLISION HANDLED\n");
         arr[i].v.y *= -1;
-      else if (arr[i].pos.y - RAD <= 0)
+        arr[i].wallCollide = false;
+      } else if (arr[i].pos.y - RAD <= 0 && arr[i].wallCollide) {
+        printf("WALL COLLISION HANDLED\n");
         arr[i].v.y *= -1;
+
+        arr[i].wallCollide = false;
+      }
+
+      // detecting
+      if (arr[i].pos.x + arr[i].v.x * DT - RAD <= 0 && arr[i].v.x < 0) {
+        var = 1 / 60.0f - fabsf((arr[i].pos.x - RAD) / arr[i].v.x);
+        if (var > dtoffset || dtoffset == 0.0f) {
+          if (wcollWillhappen) {
+            arr[collidingP1].wallCollide = false;
+          } else if (pcollWillhappen) {
+            arr[collidingP1].didCollide = false;
+            arr[collidingP2].didCollide = false;
+          }
+          wcollWillhappen = true;
+          pcollWillhappen = false;
+          collidingP1 = i;
+          arr[i].wallCollide = true;
+          dtoffset = var;
+        }
+      }
+      // if (arr[i].pos.x + arr[i].v.x - RAD <= 0){
+      else if (arr[i].pos.x + arr[i].v.x * DT + RAD >= WIDTH &&
+               arr[i].v.x > 0) {
+        var = 1 / 60.0f - fabsf((WIDTH - (arr[i].pos.x + RAD)) / arr[i].v.x);
+        if (var > dtoffset || dtoffset == 0.0f) {
+          if (wcollWillhappen) {
+            arr[collidingP1].wallCollide = false;
+          } else if (pcollWillhappen) {
+            arr[collidingP1].didCollide = false;
+            arr[collidingP2].didCollide = false;
+          }
+          wcollWillhappen = true;
+          pcollWillhappen = false;
+          collidingP1 = i;
+
+          arr[i].wallCollide = true;
+          dtoffset = var;
+        }
+      }
+      // arr[i].pos.x = WIDTH - RAD; why did i even write this
+
+      if (arr[i].pos.y + arr[i].v.y * DT + RAD >= HEIGHT && arr[i].v.y > 0) {
+        var = 1 / 60.0f - fabsf((HEIGHT - (arr[i].pos.y + RAD)) / arr[i].v.y);
+        if (var > dtoffset || dtoffset == 0.0f) {
+          if (wcollWillhappen) {
+            arr[collidingP1].wallCollide = false;
+          } else if (pcollWillhappen) {
+            arr[collidingP1].didCollide = false;
+            arr[collidingP2].didCollide = false;
+          }
+          wcollWillhappen = true;
+          pcollWillhappen = false;
+          collidingP1 = i;
+
+          arr[i].wallCollide = true;
+          dtoffset = var;
+        }
+      }
+
+      else if (arr[i].pos.y + arr[i].v.y * DT - RAD <= 0 && arr[i].v.y < 0) {
+        var = 1 / 60.0f - fabsf(((arr[i].pos.y - RAD)) / arr[i].v.y);
+        if (var > dtoffset || dtoffset == 0.0f) {
+          if (wcollWillhappen) {
+            arr[collidingP1].wallCollide = false;
+          } else if (pcollWillhappen) {
+            arr[collidingP1].didCollide = false;
+            arr[collidingP2].didCollide = false;
+          }
+          wcollWillhappen = true;
+          pcollWillhappen = false;
+          collidingP1 = i;
+
+          arr[i].wallCollide = true;
+          dtoffset = var;
+        }
+      }
 
       // collision among particles
+      // thought: if collision is going to happen reduce dt to when it will
+      // happen and sice multi particle make it the min as to handle the first
+      // collision and when dist ==r*2 velocity exchange
       for (int j = i + 1; j < noP; j++) {
-        // if (CheckCollisionCircles(
-        //         Vector2Add(arr[i].pos, Vector2Scale(arr[i].v, dt)), RAD + 2,
-        //         Vector2Add(arr[j].pos, Vector2Scale(arr[j].v, dt)), RAD + 2)
-        //         &&
-        //     i != j) {
+        // if (Vector2Length(Vector2Subtract(arr[i].pos, arr[j].pos)) ==
+        // 2.0f * RAD) {
 
-        if (CheckCollisionCircles(arr[i].pos, RAD, arr[j].pos, RAD) && i != j) {
-          dir = Vector2Normalize(
-              Vector2Subtract(arr[i].pos, arr[j].pos)); // pointing toward i
+        // if (arr[j].didCollide && arr[i].didCollide) {
+        // && Vector2LengthSqr(Vector2Subtract(arr[i].pos, arr[j].pos)) - 1.0f
+        // < 2.0 * RAD) {
+        if (i == CollidedP[0] && j == CollidedP[1]) {
+          printf("COLLISION HANDLED\n");
+          dir = Vector2Normalize(Vector2Subtract(arr[i].pos, arr[j].pos));
+          float vnBefore =
+              Vector2DotProduct(Vector2Subtract(arr[i].v, arr[j].v), dir);
+
+          // Your existing velocity updates go here.
+
+          u1 = Vector2DotProduct(arr[i].v, dir);
+
+          u2 = Vector2DotProduct(arr[j].v, dir);
+          arr[i].v = Vector2Add(arr[i].v, Vector2Scale(dir, u2 - u1));
+          arr[j].v = Vector2Add(arr[j].v, Vector2Scale(dir, u1 - u2));
+          // after v
+          float vnAfter =
+              Vector2DotProduct(Vector2Subtract(arr[i].v, arr[j].v), dir);
+
+          printf("pair (%d,%d), selected (%d,%d), "
+                 "vn before: %f, vn after: %f\n",
+                 i, j, collidingP1, collidingP2, vnBefore, vnAfter);
+
+          arr[i].didCollide = false;
+          arr[j].didCollide = false;
+          CollidedP[0] = -1;
+          CollidedP[1] = -1;
+        }
+
+        else if (CheckCollisionCircles(
+                     Vector2Add(arr[i].pos,
+                                Vector2Add(Vector2Scale(arr[i].v, DT),
+                                           Vector2Scale(arr[i].acc, DT * DT))),
+                     RAD,
+                     Vector2Add(arr[j].pos,
+                                Vector2Add(Vector2Scale(arr[j].v, DT),
+                                           Vector2Scale(arr[j].acc, DT * DT))),
+                     RAD) &&
+                 Vector2DotProduct(Vector2Subtract(arr[i].pos, arr[j].pos),
+                                   Vector2Subtract(arr[j].v, arr[i].v)) > 0) {
+          vrel = Vector2Subtract(arr[i].v, arr[j].v);
+
+          var = 1 / 60.0f -
+                ((Vector2Length(Vector2Subtract(arr[i].pos, arr[j].pos)) -
+                  RAD * 2) /
+                 (Vector2DotProduct(vrel, Vector2Normalize(Vector2Subtract(
+                                              arr[j].pos, arr[i].pos)))));
+          // THINK WHAT TO DO WITH OVERLAPPING PARTICLES(TOO HIGH SPEED)
+          var = var > DT ? 0 : var; // comment out to check overlap happens or
+          // not dt -ve means ovrlap did happen
+          if (var > dtoffset || dtoffset == 0.0f) {
+            printf("COLLISION DETECTED\n");
+            printf("vrel:%f | distance: %f | var: %f | dt next: %f\n",
+                   (Vector2DotProduct(vrel, Vector2Normalize(Vector2Subtract(
+                                                arr[j].pos, arr[i].pos)))),
+                   Vector2Length(Vector2Subtract(arr[i].pos, arr[j].pos)), var,
+                   DT - var);
+            if (wcollWillhappen) {
+              arr[collidingP1].wallCollide = false;
+            } else if (pcollWillhappen) {
+              arr[collidingP1].didCollide = false;
+              arr[collidingP2].didCollide = false;
+            }
+            pcollWillhappen = true;
+            wcollWillhappen = false;
+            collidingP1 = i;
+            collidingP2 = j;
+
+            arr[i].didCollide = true;
+            arr[j].didCollide = true;
+            dtoffset = var;
+          }
+
+          // if (CheckCollisionCircles(arr[i].pos, RAD, arr[j].pos, RAD) && i
+          // != j) {
+          //   dir = Vector2Normalize(
+          //       Vector2Subtract(arr[i].pos, arr[j].pos)); // pointing
+          //       toward
+          //       i
           // SHOULD DIR VECTOR BE WRT PREDICTED POS OR ACTUAL POS
           // dir = Vector2Normalize(Vector2Subtract(
           //     Vector2Add(arr[i].pos, Vector2Scale(arr[i].v, dt)),
           //     Vector2Add(arr[j].pos, Vector2Scale(arr[j].v, dt))));
-          u1 = Vector2DotProduct(arr[i].v, dir);
+          // arr[i].v = Vector2Add(arr[i].v, Vector2Scale(dir, u2 - u1));
+          // arr[j].v = Vector2Add(arr[j].v, Vector2Scale(dir, u1 - u2));
 
-          u2 = Vector2DotProduct(arr[j].v, dir);
-          if (Vector2LengthSqr(Vector2Subtract(
-                  Vector2Add(arr[i].pos, Vector2Scale(arr[i].v, dt)),
-                  Vector2Add(arr[j].pos, Vector2Scale(arr[j].v, dt)))) <
-              Vector2LengthSqr(Vector2Subtract(arr[i].pos, arr[j].pos))) {
-            printf("collision\n");
-
-            arr[i].v = Vector2Add(arr[i].v, Vector2Scale(dir, u2 - u1));
-            arr[j].v = Vector2Add(arr[j].v, Vector2Scale(dir, u1 - u2));
-
-            // Remove overlap;THIS IS THE CAUSE OF THAT UNEVEM TE
-            U = 0;
-
-            for (int m = 0; m < noP; m++) {
-              for (int n = m + 1; n < noP; n++) {
-                dir = Vector2Subtract(arr[m].pos, arr[n].pos);
-                r2 = Vector2Length(dir); // r2 isnt r^2 here
-                dir = Vector2Normalize(dir);
-                ef = Vector2Scale(dir, k / r2);
-                U += arr[n].charge * arr[m].charge * Vector2Length(ef);
-              }
-            }
-
-            ovrLap = 2 * RAD -
-                     (Vector2Length(Vector2Subtract(arr[i].pos, arr[j].pos)));
-            if (ovrLap > 0) {
-              dir = Vector2Normalize(
-                  Vector2Subtract(arr[i].pos, arr[j].pos)); // pointing toward i
-              arr[i].pos =
-                  Vector2Add(arr[i].pos, Vector2Scale(dir, ovrLap / 2.0));
-              arr[j].pos =
-                  Vector2Add(arr[j].pos, Vector2Scale(dir, -ovrLap / 2.0));
-              // BALANCING KE for sudden PE change
-              dU = 0;
-              for (int m = 0; m < noP; m++) {
-                for (int n = m + 1; n < noP; n++) {
-                  dir = Vector2Subtract(arr[m].pos, arr[n].pos);
-                  r2 = Vector2Length(dir); // r2 isnt r^2 here
-                  dir = Vector2Normalize(dir);
-                  ef = Vector2Scale(dir, k / r2);
-                  dU += arr[n].charge * arr[m].charge * Vector2Length(ef);
-                }
-              }
-              dU = dU - U;
-              vrel = Vector2Subtract(arr[i].v, arr[j].v);
-              vadd = Vector2Add(arr[i].v, arr[j].v);
-              // u2 = (-(2 * dU / arr[j].mass) + (Vector2LengthSqr(arr[j].v) +
-              // (Vector2LengthSqr(arr[i].v))));
-              // arr[j].v =
-              // Vector2Scale(Vector2Normalize(arr[j].v),
-              // u2);
-              if (Vector2LengthSqr(vrel) - 4 * dU / arr[i].mass > 0) {
-
-                arr[i].v =
-                    Vector2Add(Vector2Scale(vadd, 1 / 2.0),
-                               Vector2Scale(Vector2Normalize(vrel),
-                                            sqrtf(Vector2LengthSqr(vrel) -
-                                                  4 * dU / arr[i].mass) *
-                                                1 / 2.0));
-                arr[j].v =
-                    Vector2Add(Vector2Scale(vadd, 1 / 2.0),
-                               Vector2Scale(Vector2Normalize(vrel),
-                                            sqrtf(Vector2LengthSqr(vrel) -
-                                                  4 * dU / arr[i].mass) *
-                                                -1 / 2.0));
-              }
-            }
-          }
+          // Remove overlap;THIS IS THE CAUSE OF THAT UNEVEM TE
+          // U = 0;
+          //
+          // for (int m = 0; m < noP; m++) {
+          //   for (int n = m + 1; n < noP; n++) {
+          //     dir = Vector2Subtract(arr[m].pos, arr[n].pos);
+          //     r2 = Vector2Length(dir); // r2 isnt r^2 here
+          //     dir = Vector2Normalize(dir);
+          //     ef = Vector2Scale(dir, k / r2);
+          //     U += arr[n].charge * arr[m].charge * Vector2Length(ef);
+          //   }
+          // }
+          //
+          // ovrLap = 2 * RAD -
+          //          (Vector2Length(Vector2Subtract(arr[i].pos,
+          //          arr[j].pos)));
+          // if (ovrLap > 0) {
+          //   dir = Vector2Normalize(
+          //       Vector2Subtract(arr[i].pos, arr[j].pos)); // pointing
+          //       toward i
+          //   arr[i].pos =
+          //       Vector2Add(arr[i].pos, Vector2Scale(dir, ovrLap / 2.0));
+          //   arr[j].pos =
+          //       Vector2Add(arr[j].pos, Vector2Scale(dir, -ovrLap / 2.0));
+          //   // BALANCING KE for sudden PE change
+          //   dU = 0;
+          //   for (int m = 0; m < noP; m++) {
+          //     for (int n = m + 1; n < noP; n++) {
+          //       dir = Vector2Subtract(arr[m].pos, arr[n].pos);
+          //       r2 = Vector2Length(dir); // r2 isnt r^2 here
+          //       dir = Vector2Normalize(dir);
+          //       ef = Vector2Scale(dir, k / r2);
+          //       dU += arr[n].charge * arr[m].charge * Vector2Length(ef);
+          //     }
+          //   }
+          //   dU = dU - U;
+          //   vrel = Vector2Subtract(arr[i].v, arr[j].v);
+          //   vadd = Vector2Add(arr[i].v, arr[j].v);
+          //   // u2 = (-(2 * dU / arr[j].mass) +
+          //   (Vector2LengthSqr(arr[j].v) +
+          //   // (Vector2LengthSqr(arr[i].v))));
+          //   // arr[j].v =
+          //   // Vector2Scale(Vector2Normalize(arr[j].v),
+          //   // u2);
+          //   if (Vector2LengthSqr(vrel) - 4 * dU / arr[i].mass > 0) {
+          //
+          //     arr[i].v =
+          //         Vector2Add(Vector2Scale(vadd, 1 / 2.0),
+          //                    Vector2Scale(Vector2Normalize(vrel),
+          //                                 sqrtf(Vector2LengthSqr(vrel) -
+          //                                       4 * dU / arr[i].mass) *
+          //                                     1 / 2.0));
+          //     arr[j].v =
+          //         Vector2Add(Vector2Scale(vadd, 1 / 2.0),
+          //                    Vector2Scale(Vector2Normalize(vrel),
+          //                                 sqrtf(Vector2LengthSqr(vrel) -
+          //                                       4 * dU / arr[i].mass) *
+          //                                     -1 / 2.0));
         }
       }
       addTrailPts(&arr[i].pts, arr[i].pos);
@@ -411,6 +613,13 @@ int main() {
       //                         -RAD)));
       //  arr[i].pos = Vector2Add(arr[i].pos, Vector2Scale(arr[i].v, dt));
     }
+    if (pcollWillhappen) {
+      CollidedP[0] = collidingP1;
+      CollidedP[1] = collidingP2; // i<j always
+    }
+    wcollWillhappen = false;
+    pcollWillhappen = false;
+    // printf("      %d,%d        \n ", collidingP1, collidingP2);
     // // for U calc
     U = 0, ke = 0;
     for (int i = 0; i < noP; i++) {
@@ -424,20 +633,24 @@ int main() {
       ke += 1 / 2.0 * arr[i].mass * Vector2LengthSqr(arr[i].v);
     }
 
-    printf("PE:%f KE:%f TE:%f\n", grphBalance * U, grphBalance * ke,
-           grphBalance * (U + ke));
+    // printf("U:%f,ke:%f ,TE:%f", grphBalance * U, grphBalance * ke,
+    // grphBalance * (U + ke));
+    // printf("U:%f,ke:%f ,TE:%f\n", U, ke, (U + ke));
+    printf("dt:%fTE:%f E(0)-E/ E(0):%f\n)", dt, U + ke,
+           ((TE - (U + ke)) / (fabsf(TE))));
     addEnergies(&g, U, ke, U + ke);
     float max = fabsf(U) > fabsf(ke) ? U : ke;
     max = fabsf(max) > fabsf(U + ke) ? max : (U + ke);
 
     // looks better but shifts graph every frame
-    grphBalance = (HEIGHT / 2 - 50.0f) / (max != 0 ? fabsf(max) : 1.0f);
+    grphBalance = (HEIGHT / 2.0 - 50.0f) / (max != 0 ? fabsf(max) : 1.0f);
 
     // while (fabsf(HEIGHT / 2 - grphBalance * max) > HEIGHT / 2 + 100) {
     //   grphBalance *= 0.1;
     // }
-    U = 0;
-    ke = 0;
+    // I DO IT ABOVE NOW
+    // U = 0;
+    // ke = 0;
     drawCharge();
     drawEFArrow();
     drawGraph(&g);
