@@ -120,12 +120,14 @@ typedef struct {
 chargeP *arr = NULL;
 int noP = 0;
 
-void drawCharge() {
+void drawCharge(int focusP) {
   // draw box
   DrawLineEx((Vector2){WIDTH, 0}, (Vector2){WIDTH, HEIGHT}, 5, WHITE);
   DrawLineEx((Vector2){0, HEIGHT}, (Vector2){WIDTH, HEIGHT}, 4, WHITE);
   for (int i = 0; i < noP; i++) {
     DrawCircleV(arr[i].pos, RAD, arr[i].charge > 0 ? BLUE : RED);
+    if (focusP == i)
+      DrawCircleLinesEx(arr[i].pos, RAD - RAD / 5, RAD / 5, GREEN);
     drawTrailPts(&arr[i].pts);
   }
 }
@@ -176,19 +178,69 @@ void drawEFArrow() {
     }
   }
 }
+typedef struct {
+  float momx, x;
+} phase;
+
+typedef struct {
+  Vector2 pos[900]; //(x,momx)
+  int head, tail, size;
+} P2;
+void InitP2(P2 *a) {
+  a->head = 0;
+  a->tail = 0;
+  a->size = 0;
+}
+
+void addP2(P2 *a, Vector2 p) {
+  a->pos[a->tail] = p;
+  // a->pos[a->tail].x += WIDTH;
+  a->tail = (a->tail + 1) % 900;
+  if (a->size < 900) {
+    a->size++;
+  } else
+    a->head = (a->head + 1) % 900;
+}
+void drawP2(P2 *a) {
+  DrawLineEx((Vector2){WIDTH, 50.0f}, (Vector2){WIDTH, HEIGHT - 50.0f}, 4,
+             GRAY);
+  DrawLineEx((Vector2){WIDTH, 50.0f}, (Vector2){WIDTH + 10, 50.0f + 10}, 4,
+             GRAY);
+  DrawLineEx((Vector2){WIDTH, HEIGHT - 50.0f},
+             (Vector2){WIDTH + 10, HEIGHT - (50.0f + 10)}, 4, GRAY);
+  DrawLineEx((Vector2){WIDTH, HEIGHT / 2}, (Vector2){WIDTH + WIDTH, HEIGHT / 2},
+             4, GRAY);
+
+  // DrawLineEx((Vector2){WIDTH, 0}, (Vector2){WIDTH, HEIGHT}, 5, WHITE);
+  // DrawLineEx((Vector2){0, HEIGHT}, (Vector2){WIDTH, HEIGHT}, 4, WHITE);
+  // DrawLineEx((Vector2){WIDTH,HEIGHT/2}, (Vector2){WIDTH+WIDTH,HEIGHT/2} , 2,
+  // WHITE)
+  for (int i = 0; i < a->size; i++) {
+    DrawCircle(3 / 2.0 * WIDTH + a->pos[(a->head + i) % 900].x,
+               HEIGHT / 2 - grphBalance * a->pos[(a->head + i) % 900].y, 1,
+               MAGENTA);
+    printf("  x:%f  mom:%f     \n", a->pos[(a->head + i) % 900].x,
+           a->pos[(a->head + i) % 900].y);
+  }
+}
 
 int main() {
+
   // printf("hi");
   graph g;
   g.head = 0;
   g.tail = 0;
   g.size = 0;
+  int panel = 0, focusP = -1;
+  bool isStopped = false, toggleEF = true;
 
   // Tell the window to use vsync and work on high DPI displays
   // SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
 
   // Create the window and OpenGL context
-  InitWindow(WIDTH + WIDTHGRAPH, HEIGHT, "Charge Particles Simulation");
+  P2 phaseofp2;
+  InitP2(&phaseofp2);
+  InitWindow(WIDTH + WIDTHGRAPH + 900, HEIGHT, "Charge Particles Simulation");
   chargeP *tmp = NULL;
   chargeP tmpCharge;
   Vector2 ef = {0, 0}, dir, acc, startPos, vrel, vadd;
@@ -215,8 +267,33 @@ int main() {
       startPos = GetMousePosition();
     else if (IsMouseButtonPressed(MOUSE_RIGHT_BUTTON))
       startPos = GetMousePosition();
+    if (IsKeyPressed(KEY_P)) { // P toogles side panel
+      panel = (panel + 1) % 3;
+    }
+    if (IsKeyPressed(KEY_F)) {
+      startPos = GetMousePosition();
+      for (int i = 0; i < noP; i++) {
+        if (CheckCollisionPointCircle(startPos, arr[i].pos, RAD)) {
+          focusP = i;
+        }
+      }
+    }
+
+    if (IsKeyPressed(KEY_SPACE)) {
+      printf("space");
+      isStopped = !isStopped;
+    }
+    if (IsKeyPressed(KEY_E)) {
+      toggleEF = !toggleEF;
+    }
+
+    if (isStopped) {
+      EndDrawing();
+      continue;
+    }
 
     ClearBackground(BLACK);
+
     if (IsMouseButtonReleased(MOUSE_LEFT_BUTTON)) {
       tmpCharge.didCollide = false;
       tmpCharge.wallCollide = false;
@@ -241,6 +318,18 @@ int main() {
         printf("invalidP");
       }
       if (!(invalidP)) {
+        if (noP == 1 && IsKeyDown(KEY_C)) {
+          Vector2 d = Vector2Subtract(tmpCharge.pos, arr[0].pos);
+          float r = Vector2Length(d);
+
+          Vector2 tangent = {d.y / r, -d.x / r};
+
+          float vRel =
+              sqrtf(k / r * (1.0f / arr[0].mass + 1.0f / tmpCharge.mass));
+
+          tmpCharge.v = Vector2Add(arr[0].v, Vector2Scale(tangent, vRel));
+        }
+
         chargeP *tmp = (chargeP *)realloc(arr, (noP + 1) * sizeof(chargeP));
         if (tmp == NULL) {
           continue;
@@ -295,6 +384,19 @@ int main() {
       }
 
       if (!(invalidP)) {
+        if (noP == 1 && IsKeyDown(KEY_C)) {
+
+          Vector2 d = Vector2Subtract(tmpCharge.pos, arr[0].pos);
+          float r = Vector2Length(d);
+
+          Vector2 tangent = {d.y / r, -d.x / r};
+
+          float vRel =
+              sqrtf(k / r * (1.0f / arr[0].mass + 1.0f / tmpCharge.mass));
+
+          tmpCharge.v = Vector2Add(arr[0].v, Vector2Scale(tangent, vRel));
+        }
+
         chargeP *tmp = (chargeP *)realloc(arr, (noP + 1) * sizeof(chargeP));
         if (tmp == NULL) {
           continue;
@@ -1034,27 +1136,62 @@ int main() {
       ke += 1 / 2.0 * arr[i].mass * Vector2LengthSqr(arr[i].v);
     }
 
+    if (noP > 1)
+      addP2(&phaseofp2, (Vector2){arr[1].pos.x - arr[0].pos.x,
+                                  arr[1].mass * (arr[1].v.x - arr[0].v.x)});
+    // addP2(&phaseofp2, (Vector2){arr[1].pos.x,
+    // HEIGHT / 2 - 0.1 * arr[1].mass * arr[1].v.x});
+
     // printf("U:%f,ke:%f ,TE:%f", grphBalance * U, grphBalance * ke,
     // grphBalance * (U + ke));
     // printf("U:%f,ke:%f ,TE:%f\n", U, ke, (U + ke));
     printf("dt:%fTE:%f E(0)-E/ E(0):%f\n)", dt, U + ke,
            ((TE - (U + ke)) / (fabsf(TE))));
     addEnergies(&g, U, ke, U + ke);
-    float max = fabsf(U) > fabsf(ke) ? U : ke;
-    max = fabsf(max) > fabsf(U + ke) ? max : (U + ke);
+    if (panel == 0) {
+      float max = fabsf(U) > fabsf(ke) ? U : ke;
+      max = fabsf(max) > fabsf(U + ke) ? max : (U + ke);
 
-    // looks better but shifts graph every frame
-    grphBalance = (HEIGHT / 2.0 - 50.0f) / (max != 0 ? fabsf(max) : 1.0f);
-
+      // looks better but shifts graph every frame
+      grphBalance = (HEIGHT / 2.0 - 50.0f) / (max != 0 ? fabsf(max) : 1.0f);
+      drawGraph(&g);
+    }
+    if (panel == 1) {
+      grphBalance = 0.1 * (HEIGHT / 2.0 - 50.0f) / (arr[1].mass * arr[1].v.x);
+      grphBalance = 10;
+      drawP2(&phaseofp2);
+    }
+    if (panel == 2) {
+      if (focusP == -1 && noP != 0) {
+        focusP = 0;
+      }
+      if (focusP != -1) {
+        DrawText(TextFormat(
+                     "Particle "
+                     "No=%d\nCharge:%d\tMass:%f\nPosition:(%f)i+(%f)"
+                     "j\nVelocity:%(f)i+(%f)j\nAcceleration:(%f)i+(%f)j\nKE of "
+                     "particle:%f",
+                     focusP + 1, arr[focusP].charge, arr[focusP].mass,
+                     arr[focusP].pos.x, arr[focusP].pos.y, arr[focusP].v.x,
+                     arr[focusP].v.y, arr[focusP].acc.x, arr[focusP].acc.y,
+                     0.5 * arr[focusP].mass * Vector2LengthSqr(arr[focusP].v)),
+                 WIDTH + 10, 10, 30, BEIGE);
+        DrawText(TextFormat("PE:%f\nKE:%f\nTE:%f\ndt:%f\nE(0)-E/ E(0):%f\n", U,
+                            ke, U + ke, dt, ((TE - (U + ke)) / (fabsf(TE)))),
+                 2 * WIDTH - 100, 10, 30, GREEN);
+      }
+    }
     // while (fabsf(HEIGHT / 2 - grphBalance * max) > HEIGHT / 2 + 100) {
     //   grphBalance *= 0.1;
     // }
     // I DO IT ABOVE NOW
     // U = 0;
     // ke = 0;
-    drawCharge();
-    drawEFArrow();
-    drawGraph(&g);
+    if (toggleEF) {
+
+      drawEFArrow();
+    }
+    drawCharge(focusP);
     EndDrawing();
   }
   // cleanup
