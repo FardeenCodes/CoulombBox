@@ -17,7 +17,11 @@ A small **2D electrostatic particle simulator** written in C using [raylib](http
 - Show particle trails to make trajectories easier to follow.
 - Plot potential energy (PE), kinetic energy (KE), and total energy (TE) over recent frames.
 - Include wall bounces and particle-particle collision handling.
+- Stop the simulation by pressing Space Bar.
 
+Edit:
+added options to toggle EF arrows 
+added 2 more panels momentum.x vs pos.x graph and raw data ,u can switch between them 
 ## Controls
 
 |Action|Control|
@@ -25,6 +29,10 @@ A small **2D electrostatic particle simulator** written in C using [raylib](http
 |Add a positive charge|Left-click, drag, then release|
 |Add a negative charge|Right-click, drag, then release|
 |Set initial velocity|Drag direction and distance before releasing|
+|Pause/resume|Space bar|
+|Toggle EF arrow|E|
+|Toggle side panels|P|
+|Change focused charge|Press F ,while mouse is on that charge|
 |Close the simulation|Close the window or press `Esc`|
 
 A particle is only added when its starting position is inside the simulation area and does not overlap an existing particle. The initial velocity is based on the mouse displacement during the drag, so longer drags produce larger initial speeds.
@@ -36,6 +44,8 @@ A particle is only added when its starting position is inside the simulation are
 - **Numerical accuracy depends on the time step.** The simulation currently advances by a fixed 1/60-second step per rendered frame. Close encounters and fast particles may need a smaller time step or substeps for better stability.
 - **The model is simplified.** It does not include electromagnetic radiation, relativistic effects, charge distributions, or other real-world effects.
 - **Units are arbitrary.** The constants and screen coordinates are chosen for a visible interactive demonstration, not a calibrated physical experiment.
+
+EDIT: improved collision response by adding event based collision detection ,now i dont fix overlap by moving particles
 
 #### Key things I learnt
 * Velocity Verlet — updating position using the current velocity and acceleration, recalculating acceleration, then updating velocity using the old and new accelerations.
