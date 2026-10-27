@@ -1,4 +1,4 @@
-/*
+/*//TODO:fix acc contri in wall collision or remove it
  // NOTE::encountered an issue with .didcollide  where this loops new
 colliding particles interfered with last loops colliding particles pair
 
@@ -351,53 +351,91 @@ int main() {
     for (int i = 0; i < noP; i++) {
 
       // wall collide[CORRECT]
-      // handling
-      if (arr[i].pos.x - RAD <= 0 && arr[i].wallCollide) {
+      // // handling
+      //
+      if (CollidedP[1] == -5 && arr[i].wallCollide) {
         printf("WALL COLLISION HANDLED\n");
         // if (arr[i].pos.x + arr[i].v.x - RAD <= 0){
         arr[i].v.x *= -1;
 
         arr[i].wallCollide = false;
-      } else if (arr[i].pos.x + RAD >= WIDTH && arr[i].wallCollide) {
-        printf("WALL COLLISION HANDLED\n");
-        arr[i].v.x *= -1;
-        arr[i].wallCollide = false;
       }
-      // arr[i].pos.x = WIDTH - RAD; why did i even write this
+      // NOTE:HAD TO remove exact checking value of distance checking due to
+      // numerical/floating pt errors
+      //
+      //  } else if (CollidedP[1] == -3 && arr[i].wallCollide) {
+      //    printf("WALL COLLISION HANDLED\n");
+      //    arr[i].v.x *= -1;
+      //    arr[i].wallCollide = false;
+      //  }
+      //  arr[i].pos.x = WIDTH - RAD; why did i even write this
 
-      if (arr[i].pos.y + RAD >= HEIGHT && arr[i].wallCollide) {
+      if (CollidedP[1] == -2 && arr[i].wallCollide) {
         printf("WALL COLLISION HANDLED\n");
         arr[i].v.y *= -1;
         arr[i].wallCollide = false;
-      } else if (arr[i].pos.y - RAD <= 0 && arr[i].wallCollide) {
-        printf("WALL COLLISION HANDLED\n");
-        arr[i].v.y *= -1;
-
-        arr[i].wallCollide = false;
       }
-
       // detecting
-      if (arr[i].pos.x + arr[i].v.x * DT - RAD <= 0 && arr[i].v.x < 0) {
-        var = 1 / 60.0f - fabsf((arr[i].pos.x - RAD) / arr[i].v.x);
-        if (var > dtoffset || dtoffset == 0.0f) {
-          if (wcollWillhappen) {
-            arr[collidingP1].wallCollide = false;
-          } else if (pcollWillhappen) {
-            arr[collidingP1].didCollide = false;
-            arr[collidingP2].didCollide = false;
+      if ((arr[i].pos.x + arr[i].v.x * DT + 0.5f * arr[i].acc.x * DT * DT) -
+                  RAD <=
+              0 &&
+          arr[i].v.x < 0) {
+        double tcoll = ((arr[i].v.x * arr[i].v.x) +
+                        (2 * arr[i].acc.x * ((RAD - arr[i].pos.x))));
+        u2 = arr[i].acc.x;
+        u1 = arr[i].v.x;
+        if (fabsf(u2) > 0.0f && !isnan(tcoll)) {
+
+          if (tcoll >= 0.0 && isfinite(tcoll)) {
+            tcoll = sqrt(tcoll);
+            double v_rootD = -0.5 * (u1 + copysign(tcoll, u1));
+            double root1, root2;
+            // q is needed bcz float was approx v - very smal root(D) as v
+            if (v_rootD != 0.0) {
+              root1 = v_rootD / (0.5 * u2);
+              root2 = (WIDTH - (arr[i].pos.x + RAD)) / v_rootD;
+
+              // Check each root independently for 0 < root <= DT.
+            } else {
+              root1 = -1;
+              root2 = -1;
+            }
+
+            if (root1 < root2 && root1 > 0 && root1 <= DT) {
+              // printf("if else a\n");
+              var = DT - root1;
+            } else if (root1 > root2 && root2 > 0 && root2 <= DT) {
+              // printf("if if a  tcoll:%f", tcoll);
+              var = DT - root2;
+            } else if (root1 > 0 && root1 <= DT) {
+
+              var = DT - root1;
+            } else if (root2 > 0 && root2 <= DT) {
+              var = DT - root2;
+            } else {
+              // already crossed wall
+              printf("no valid root");
+              var = 0; // for preventing it from hindering other
+              printf(" acc:%f,v:%f,x:%f\n", u2, u1, arr[i].pos.y);
+
+              // var = DT - (((-u1 - tcoll) / u2) > 0 ? ((-u1 - tcoll) / u2)
+              // : ((-u1 + tcoll) / u2));
+              //   // when both are -ve
+              arr[i].v.x *= -1;
+            }
           }
-          wcollWillhappen = true;
-          pcollWillhappen = false;
-          collidingP1 = i;
-          arr[i].wallCollide = true;
-          dtoffset = var;
+        } else {
+          printf("else a\n");
+          var = DT - fabsf((arr[i].pos.x - RAD) / arr[i].v.x);
         }
-      }
-      // if (arr[i].pos.x + arr[i].v.x - RAD <= 0){
-      else if (arr[i].pos.x + arr[i].v.x * DT + RAD >= WIDTH &&
-               arr[i].v.x > 0) {
-        var = 1 / 60.0f - fabsf((WIDTH - (arr[i].pos.x + RAD)) / arr[i].v.x);
-        if (var > dtoffset || dtoffset == 0.0f) {
+        if (var < 0)
+          printf("-ve var\n");
+        if (var > DT) {
+          printf("how tf");
+        }
+        // var = var > DT ? 0 : var; // comment out to check overlap happens
+        if (var > dtoffset /*|| dtoffset == 0.0f*/) {
+          printf(" acc:%f,v:%f,y:%f\n", u2, u1, arr[i].pos.x);
           if (wcollWillhappen) {
             arr[collidingP1].wallCollide = false;
           } else if (pcollWillhappen) {
@@ -407,16 +445,216 @@ int main() {
           wcollWillhappen = true;
           pcollWillhappen = false;
           collidingP1 = i;
+          collidingP2 = -5; // left&right wall
 
           arr[i].wallCollide = true;
           dtoffset = var;
         }
       }
+
+      // if (arr[i].pos.x + arr[i].v.x * DT + 0.5f * arr[i].acc.x * DT * DT -
+      //             RAD <=
+      //         0 &&
+      //     arr[i].v.x < 0) {
+      //   var = 1 / 60.0f - fabsf((arr[i].pos.x - RAD) / arr[i].v.x);
+      //   if (var > dtoffset || dtoffset == 0.0f) {
+      //     if (wcollWillhappen) {
+      //       arr[collidingP1].wallCollide = false;
+      //     } else if (pcollWillhappen) {
+      //       arr[collidingP1].didCollide = false;
+      //       arr[collidingP2].didCollide = false;
+      //     }
+      //     wcollWillhappen = true;
+      //     pcollWillhappen = false;
+      //     collidingP1 = i;
+      //     collidingP2 = -5; //-5=right &left wall
+      //     arr[i].wallCollide = true;
+      //     dtoffset = var;
+      //   }
+      // }
+      // if (arr[i].pos.x + arr[i].v.x - RAD <= 0){
+      else if ((arr[i].pos.x + arr[i].v.x * DT +
+                0.5f * arr[i].acc.x * DT * DT) +
+                       RAD >=
+                   WIDTH &&
+               arr[i].v.x > 0) {
+        double tcoll = ((arr[i].v.x * arr[i].v.x) +
+                        (2 * arr[i].acc.x * (WIDTH - (RAD + arr[i].pos.x))));
+        u2 = arr[i].acc.x;
+        u1 = arr[i].v.x;
+        if (fabsf(u2) > 0.0f && !isnan(tcoll)) {
+
+          if (tcoll >= 0.0 && isfinite(tcoll)) {
+            tcoll = sqrt(tcoll);
+            double v_rootD = -0.5 * (u1 + copysign(tcoll, u1));
+            double root1, root2;
+            // q is needed bcz float was approx v - very smal root(D) as v
+            if (v_rootD != 0.0) {
+              root1 = v_rootD / (0.5 * u2);
+              root2 = (WIDTH - (arr[i].pos.x + RAD)) / v_rootD;
+
+              // Check each root independently for 0 < root <= DT.
+            } else {
+              root1 = -1;
+              root2 = -1;
+            }
+
+            if (root1 < root2 && root1 > 0 && root1 <= DT) {
+              // printf("if else a\n");
+              var = DT - root1;
+            } else if (root1 > root2 && root2 > 0 && root2 <= DT) {
+              // printf("if if a  tcoll:%f", tcoll);
+              var = DT - root2;
+            } else if (root1 > 0 && root1 <= DT) {
+
+              var = DT - root1;
+            } else if (root2 > 0 && root2 <= DT) {
+              var = DT - root2;
+            } else {
+              // already crossed wall
+              printf("no valid root");
+              var = 0; // for preventing it from hindering other
+              printf(" acc:%f,v:%f,x:%f\n", u2, u1, arr[i].pos.x);
+
+              // var = DT - (((-u1 - tcoll) / u2) > 0 ? ((-u1 - tcoll) / u2)
+              // : ((-u1 + tcoll) / u2));
+              //   // when both are -ve
+              arr[i].v.x *= -1;
+            }
+          }
+        } else {
+          printf("else a\n");
+          var = DT - fabsf((WIDTH - (arr[i].pos.x + RAD)) / arr[i].v.x);
+        }
+        if (var < 0)
+          printf("-ve var\n");
+        if (var > DT) {
+          printf("how tf");
+        }
+        // var = var > DT ? 0 : var; // comment out to check overlap happens
+        if (var > dtoffset /*|| dtoffset == 0.0f*/) {
+          printf(" acc:%f,v:%f,y:%f\n", u2, u1, arr[i].pos.y);
+          if (wcollWillhappen) {
+            arr[collidingP1].wallCollide = false;
+          } else if (pcollWillhappen) {
+            arr[collidingP1].didCollide = false;
+            arr[collidingP2].didCollide = false;
+          }
+          wcollWillhappen = true;
+          pcollWillhappen = false;
+          collidingP1 = i;
+          collidingP2 = -5; // left&right wall
+
+          arr[i].wallCollide = true;
+          dtoffset = var;
+        }
+      }
+
+      // else if (arr[i].pos.x + arr[i].v.x * DT + 0.5f * arr[i].acc.x * DT * DT
+      // +
+      //                  RAD >=
+      //              WIDTH &&
+      //          arr[i].v.x > 0) {
+      //   var = 1 / 60.0f - fabsf((WIDTH - (arr[i].pos.x + RAD)) / arr[i].v.x);
+      //   if (var > dtoffset || dtoffset == 0.0f) {
+      //     if (wcollWillhappen) {
+      //       arr[collidingP1].wallCollide = false;
+      //     } else if (pcollWillhappen) {
+      //       arr[collidingP1].didCollide = false;
+      //       arr[collidingP2].didCollide = false;
+      //     }
+      //     wcollWillhappen = true;
+      //     pcollWillhappen = false;
+      //     collidingP1 = i;
+      //     collidingP2 = -5; //-5=right&left wall
+      //
+      //     arr[i].wallCollide = true;
+      //     dtoffset = var;
+      //   }
+      // }
       // arr[i].pos.x = WIDTH - RAD; why did i even write this
 
-      if (arr[i].pos.y + arr[i].v.y * DT + RAD >= HEIGHT && arr[i].v.y > 0) {
-        var = 1 / 60.0f - fabsf((HEIGHT - (arr[i].pos.y + RAD)) / arr[i].v.y);
-        if (var > dtoffset || dtoffset == 0.0f) {
+      // if (arr[i].pos.y + arr[i].v.y * DT + 0.5f * arr[i].acc.y * DT * DT +
+      //             RAD >=
+      //         HEIGHT &&
+      //     arr[i].v.y > 0) {
+      //   var = 1 / 60.0f - fabsf((HEIGHT - (arr[i].pos.y + RAD)) /
+      //   arr[i].v.y); if (var > dtoffset || dtoffset == 0.0f) {
+      //     if (wcollWillhappen) {
+      //       arr[collidingP1].wallCollide = false;
+      //     } else if (pcollWillhappen) {
+      //       arr[collidingP1].didCollide = false;
+      //       arr[collidingP2].didCollide = false;
+      //     }
+      //     wcollWillhappen = true;
+      //     pcollWillhappen = false;
+      //     collidingP1 = i;
+      //     collidingP2 = -2; //-2=Upper &lower wall
+      //
+      //     arr[i].wallCollide = true;
+      //     dtoffset = var;
+      //   }
+      // }
+      if ((arr[i].pos.y + arr[i].v.y * DT + 0.5f * arr[i].acc.y * DT * DT) +
+                  RAD >=
+              HEIGHT &&
+          arr[i].v.y > 0) {
+        double tcoll = ((arr[i].v.y * arr[i].v.y) +
+                        (2 * arr[i].acc.y * (HEIGHT - (RAD + arr[i].pos.y))));
+        u2 = arr[i].acc.y;
+        u1 = arr[i].v.y;
+        if (fabsf(u2) > 0.0f && !isnan(tcoll)) {
+
+          if (tcoll >= 0.0 && isfinite(tcoll)) {
+            tcoll = sqrt(tcoll);
+            double v_rootD = -0.5 * (u1 + copysign(tcoll, u1));
+            double root1, root2;
+            // q is needed bcz float was approx v - very smal root(D) as v
+            if (v_rootD != 0.0) {
+              root1 = v_rootD / (0.5 * u2);
+              root2 = (HEIGHT - (arr[i].pos.y + RAD)) / v_rootD;
+
+              // Check each root independently for 0 < root <= DT.
+            } else {
+              root1 = -1;
+              root2 = -1;
+            }
+
+            if (root1 < root2 && root1 > 0 && root1 <= DT) {
+              // printf("if else a\n");
+              var = DT - root1;
+            } else if (root1 > root2 && root2 > 0 && root2 <= DT) {
+              // printf("if if a  tcoll:%f", tcoll);
+              var = DT - root2;
+            } else if (root1 > 0 && root1 <= DT) {
+
+              var = DT - root1;
+            } else if (root2 > 0 && root2 <= DT) {
+              var = DT - root2;
+            } else {
+              // already crossed wall
+              printf("no valid root");
+              var = 0; // for preventing it from hindering other
+              printf(" acc:%f,v:%f,y:%f\n", u2, u1, arr[i].pos.y);
+
+              // var = DT - (((-u1 - tcoll) / u2) > 0 ? ((-u1 - tcoll) / u2)
+              // : ((-u1 + tcoll) / u2));
+              //   // when both are -ve
+              arr[i].v.y *= -1;
+            }
+          }
+        } else {
+          printf("else a\n");
+          var = DT - fabsf((HEIGHT - (arr[i].pos.y + RAD)) / arr[i].v.y);
+        }
+        if (var < 0)
+          printf("-ve var\n");
+        if (var > DT) {
+          printf("how tf");
+        }
+        // var = var > DT ? 0 : var; // comment out to check overlap happens
+        if (var > dtoffset /*|| dtoffset == 0.0f*/) {
+          printf(" acc:%f,v:%f,y:%f\n", u2, u1, arr[i].pos.y);
           if (wcollWillhappen) {
             arr[collidingP1].wallCollide = false;
           } else if (pcollWillhappen) {
@@ -426,15 +664,130 @@ int main() {
           wcollWillhappen = true;
           pcollWillhappen = false;
           collidingP1 = i;
+          collidingP2 = -2; //-2=upper&below wall
 
           arr[i].wallCollide = true;
           dtoffset = var;
         }
       }
 
-      else if (arr[i].pos.y + arr[i].v.y * DT - RAD <= 0 && arr[i].v.y < 0) {
-        var = 1 / 60.0f - fabsf(((arr[i].pos.y - RAD)) / arr[i].v.y);
-        if (var > dtoffset || dtoffset == 0.0f) {
+      // else if (arr[i].pos.y + arr[i].v.y * DT +
+      //                    0.5f * arr[i].acc.y * DT * DT - RAD <=
+      //                0 &&
+      //            arr[i].v.y < 0) {
+      //   var = 1 / 60.0f - fabsf((arr[i].pos.y - RAD) / arr[i].v.y);
+      //   if (var > dtoffset || dtoffset == 0.0f) {
+      //     if (wcollWillhappen) {
+      //       arr[collidingP1].wallCollide = false;
+      //     } else if (pcollWillhappen) {
+      //       arr[collidingP1].didCollide = false;
+      //       arr[collidingP2].didCollide = false;
+      //     }
+      //     wcollWillhappen = true;
+      //     pcollWillhappen = false;
+      //     collidingP1 = i;
+      //
+      //     arr[i].wallCollide = true;
+      //     dtoffset = var;
+      //   }
+      // }
+      //
+      // 0=1/2at^2+ut-S
+      // s=rad
+      // t=-u+-sqrt(u^2+2accS)/acc
+      //
+      else if ((arr[i].pos.y + arr[i].v.y * DT +
+                0.5f * arr[i].acc.y * DT * DT) -
+                       RAD <=
+                   0 &&
+               arr[i].v.y < 0) {
+        double tcoll = ((arr[i].v.y * arr[i].v.y) +
+                        (2 * arr[i].acc.y * (RAD - arr[i].pos.y)));
+        u2 = arr[i].acc.y;
+        u1 = arr[i].v.y;
+        if (fabsf(u2) > 0.0f && !isnan(tcoll)) {
+
+          if (tcoll >= 0.0 && isfinite(tcoll)) {
+            tcoll = sqrt(tcoll);
+            double v_rootD = -0.5 * (u1 + copysign(tcoll, u1));
+            double root1, root2;
+            // q is needed bcz float was approx v - very smal root(D) as v
+            if (v_rootD != 0.0) {
+              root1 = v_rootD / (0.5 * u2);
+              root2 = (arr[i].pos.y - RAD) / v_rootD;
+
+              // Check each root independently for 0 < root <= DT.
+            } else {
+              root1 = -1;
+              root2 = -1;
+            }
+
+            if (root1 < root2 && root1 > 0 && root1 <= DT) {
+              // printf("if else a\n");
+              var = DT - root1;
+            } else if (root1 > root2 && root2 > 0 && root2 <= DT) {
+              // printf("if if a  tcoll:%f", tcoll);
+              var = DT - root2;
+            } else if (root1 > 0 && root1 <= DT) {
+
+              var = DT - root1;
+            } else if (root2 > 0 && root2 <= DT) {
+              var = DT - root2;
+            } else {
+              // already crossed wall
+              printf("no valid root");
+              var = 0; // for preventing it from hindering other
+              printf(" acc:%f,v:%f,y:%f\n", u2, u1, arr[i].pos.y);
+
+              // var = DT - (((-u1 - tcoll) / u2) > 0 ? ((-u1 - tcoll) / u2)
+              // : ((-u1 + tcoll) / u2));
+              //   // when both are -ve
+              arr[i].v.y *= -1;
+            }
+          }
+
+          // if (((-u1 + tcoll) / u2) < (-u1 - tcoll) / u2 &&
+          //     ((-u1 + tcoll) / u2) > 0 && ((-u1 + tcoll) / u2) <= DT) {
+          //   // printf("if else a\n");
+          //   var = DT - ((-u1 + tcoll) / u2);
+          // } else if (((-u1 + tcoll) / u2) > (-u1 - tcoll) / u2 &&
+          //            ((-u1 - tcoll) / u2) > 0 && ((-u1 - tcoll) / u2) <=
+          //            DT)
+          //            {
+          //   // printf("if if a  tcoll:%f", tcoll);
+          //   var = DT - ((-u1 - tcoll) / u2);
+          // } else if (((-u1 + tcoll) / u2) > 0 && ((-u1 + tcoll) / u2) <=
+          // DT)
+          // {
+          //
+          //   var = DT - ((-u1 + tcoll) / u2);
+          // } else if (((-u1 - tcoll) / u2) > 0 && ((-u1 - tcoll) / u2) <=
+          // DT)
+          // {
+          //   var = DT - ((-u1 - tcoll) / u2);
+          // } else {
+          //   printf("why no valid root");
+          //   var = DT; // for preventing it from hindering other
+          //   printf(" acc:%f,v:%f,y:%f\n", u2, u1, arr[i].pos.y);
+          //
+          //   // var = DT - (((-u1 - tcoll) / u2) > 0 ? ((-u1 - tcoll) /
+          //   u2)
+          //   // : ((-u1 + tcoll) / u2));
+          //   //   // when both are -ve
+          //   // arr[i].v.y *= -1;}
+          // }
+        } else {
+          printf("else a\n");
+          var = DT - fabsf(((arr[i].pos.y - RAD)) / arr[i].v.y);
+        }
+        if (var < 0)
+          printf("-ve var\n");
+        if (var > DT) {
+          printf("how tf");
+        }
+        // var = var > DT ? 0 : var; // comment out to check overlap happens
+        if (var > dtoffset /*|| dtoffset == 0.0f*/) {
+          printf(" acc:%f,v:%f,y:%f\n", u2, u1, arr[i].pos.y);
           if (wcollWillhappen) {
             arr[collidingP1].wallCollide = false;
           } else if (pcollWillhappen) {
@@ -444,23 +797,24 @@ int main() {
           wcollWillhappen = true;
           pcollWillhappen = false;
           collidingP1 = i;
+          collidingP2 = -2; //-2=upper&below wall
 
           arr[i].wallCollide = true;
           dtoffset = var;
         }
       }
-
+      //
       // collision among particles
       // thought: if collision is going to happen reduce dt to when it will
-      // happen and sice multi particle make it the min as to handle the first
-      // collision and when dist ==r*2 velocity exchange
+      // happen and sice multi particle make it the min as to handle the
+      // first collision and when dist ==r*2 velocity exchange
       for (int j = i + 1; j < noP; j++) {
         // if (Vector2Length(Vector2Subtract(arr[i].pos, arr[j].pos)) ==
         // 2.0f * RAD) {
 
         // if (arr[j].didCollide && arr[i].didCollide) {
-        // && Vector2LengthSqr(Vector2Subtract(arr[i].pos, arr[j].pos)) - 1.0f
-        // < 2.0 * RAD) {
+        // && Vector2LengthSqr(Vector2Subtract(arr[i].pos, arr[j].pos))
+        // - 1.0f < 2.0 * RAD) {
         if (i == CollidedP[0] && j == CollidedP[1]) {
           printf("COLLISION HANDLED\n");
           dir = Vector2Normalize(Vector2Subtract(arr[i].pos, arr[j].pos));
@@ -489,27 +843,69 @@ int main() {
         }
 
         else if (CheckCollisionCircles(
-                     Vector2Add(arr[i].pos,
-                                Vector2Add(Vector2Scale(arr[i].v, DT),
-                                           Vector2Scale(arr[i].acc, DT * DT))),
+                     Vector2Add(
+                         arr[i].pos,
+                         Vector2Add(Vector2Scale(arr[i].v, DT),
+                                    Vector2Scale(arr[i].acc, 0.5 * DT * DT))),
                      RAD,
-                     Vector2Add(arr[j].pos,
-                                Vector2Add(Vector2Scale(arr[j].v, DT),
-                                           Vector2Scale(arr[j].acc, DT * DT))),
+                     Vector2Add(
+                         arr[j].pos,
+                         Vector2Add(Vector2Scale(arr[j].v, DT),
+                                    Vector2Scale(arr[j].acc, 0.5 * DT * DT))),
                      RAD) &&
                  Vector2DotProduct(Vector2Subtract(arr[i].pos, arr[j].pos),
                                    Vector2Subtract(arr[j].v, arr[i].v)) > 0) {
           vrel = Vector2Subtract(arr[i].v, arr[j].v);
+          u1 = Vector2DotProduct(
+              vrel, Vector2Normalize(Vector2Subtract(arr[j].pos, arr[i].pos)));
+          // accrel
+          u2 = (Vector2DotProduct(
+              Vector2Subtract(arr[i].acc, arr[j].acc),
+              Vector2Normalize(Vector2Subtract(arr[j].pos, arr[i].pos))));
+          // ut+1/2acct^2-S=0
+          // t=-u+-sqrt(u^2+2accS)/acc
+          float tcoll = sqrtf(
+              powf(Vector2DotProduct(vrel, Vector2Normalize(Vector2Subtract(
+                                               arr[j].pos, arr[i].pos))),
+                   2) +
+              2 *
+                  Vector2DotProduct(Vector2Subtract(arr[i].acc, arr[j].acc),
+                                    Vector2Normalize(Vector2Subtract(
+                                        arr[j].pos, arr[i].pos))) *
+                  (Vector2Length(Vector2Subtract(arr[i].pos, arr[j].pos)) -
+                   (2 * RAD)));
+          if ((-u1 + tcoll) / u2 > (-u1 - tcoll) / u2 &&
+              ((-u1 - tcoll) / u2) > 0) {
+            var = DT - ((-u1 - tcoll) / u2);
+          } else if ((-u1 + tcoll) / u2 < (-u1 - tcoll) / u2 &&
+                     ((-u1 + tcoll) / u2) > 0)
+            var = DT - ((-u1 + tcoll) / u2);
+          else if ((-u1 + tcoll) / u2 > 0 && (-u1 + tcoll) / u2 < DT) {
+            var = DT - (-u1 + tcoll) / u2;
+          } else if ((-u1 - tcoll) / u2 > 0 && (-u1 - tcoll) / u2 < DT) {
+            var = DT - (-u1 - tcoll) / u2;
+            // var = DT - 0;
+          } else {
+            // UNHANDLED OVERLAP
+            var = DT;
 
-          var = 1 / 60.0f -
-                ((Vector2Length(Vector2Subtract(arr[i].pos, arr[j].pos)) -
-                  RAD * 2) /
-                 (Vector2DotProduct(vrel, Vector2Normalize(Vector2Subtract(
-                                              arr[j].pos, arr[i].pos)))));
+            printf("why\n");
+          }
+          // var = DT - ((Vector2Length(Vector2Subtract(arr[i].pos,
+          // arr[j].pos))
+          // -
+          //              RAD * 2) /
+          //             (Vector2DotProduct(vrel,
+          //             Vector2Normalize(Vector2Subtract(
+          //                                          arr[j].pos,
+          //                                          arr[i].pos)))));
           // THINK WHAT TO DO WITH OVERLAPPING PARTICLES(TOO HIGH SPEED)
-          var = var > DT ? 0 : var; // comment out to check overlap happens or
-          // not dt -ve means ovrlap did happen
-          if (var > dtoffset || dtoffset == 0.0f) {
+          //
+          // if (var > DT)
+          //   printf("overlap between partocles happened\n");
+          // var = var > DT ? 0 : var; // comment out to check overlap
+          // happens or not dt -ve means ovrlap did happen
+          if (var > dtoffset /*|| dtoffset == 0.0f*/) {
             printf("COLLISION DETECTED\n");
             printf("vrel:%f | distance: %f | var: %f | dt next: %f\n",
                    (Vector2DotProduct(vrel, Vector2Normalize(Vector2Subtract(
@@ -532,7 +928,8 @@ int main() {
             dtoffset = var;
           }
 
-          // if (CheckCollisionCircles(arr[i].pos, RAD, arr[j].pos, RAD) && i
+          // if (CheckCollisionCircles(arr[i].pos, RAD, arr[j].pos, RAD) &&
+          // i
           // != j) {
           //   dir = Vector2Normalize(
           //       Vector2Subtract(arr[i].pos, arr[j].pos)); // pointing
@@ -617,6 +1014,10 @@ int main() {
       CollidedP[0] = collidingP1;
       CollidedP[1] = collidingP2; // i<j always
     }
+    if (wcollWillhappen) {
+      CollidedP[1] = collidingP2;
+    }
+
     wcollWillhappen = false;
     pcollWillhappen = false;
     // printf("      %d,%d        \n ", collidingP1, collidingP2);
